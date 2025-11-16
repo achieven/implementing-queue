@@ -60,7 +60,7 @@ Confirm = (workerId: number, messageId: string) => {
     this.itemsBusy.delete(messageKey)
 }
 ```
-- Even if using array, it's still not performant enough, using the `filter` method, which is usually slower than finding the relevent and remove it (`findIndex` & `splice`).  
+- Even if using array, the Confirm method is still not performant enough, using the `filter` method, which is usually slower than finding the relevent and remove it (`findIndex` & `splice`).  
 That is because it *must* go over the whole elements in the array as well as copying it to a new array, while find & remove also stops the the first index (which in our case will be the only matching index), as well doesn't copy to a new array.  
 i.e:
 ```
