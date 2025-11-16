@@ -38,11 +38,37 @@ the `itemsBusy` is adding and clearing the keys that are currently busy, trying 
 
 ### Note
 1. Out of rush to complete the task with the given time, there are a few issues:  
-- This solution is not fully race condition proof, it's not implementing lock acquisition good enough, because for example 2 workers can might not access the while condition, and both push to the array (which should have been a map/object, see note (3)), and resolve.  
+- Maybe this is related to "over-engineering", but  if we were to take this solution to the real world, and worker implementation would have been a concurrent implemetation such as worker threads, this solution would have not been fully race condition proof, as it's not implementing lock acquisition atomically, because for example 2 workers can might not access the while condition, and both push to the array (which should have been a map/object, see next note), and resolve.  
 Ideal solution should use a real Mutex implementation for each item.  
-- Even if not using mutex, using map/object would have been more performant than array, as it checks the while condition and removes in O(1) complexity.
+But because workers here are not really asynchronous (only the DB set operation is), and we run a javascript single-thread process, there are no context switches until an async operation occurs.
+- Even if not using mutex, using Set/Map/object would have been more performant than array, as it checks the while condition and removes in O(1) complexity.
+i.e using Set:
+```
+Dequeue = async (workerId: number): Promise<Message | undefined> => {
+    const message = this.messages.splice(0,1)[0]
+    if (!message) {
+        return undefined
+    }
+    while (this.itemsBusy.has(message.key)) {
+        await sleep(getRandomInt(10))
+    }
+    this.itemsBusy.add(message.key)
+    return message
+}
+Confirm = (workerId: number, messageId: string) => {
+    const messageKey = messageId.split(':')[0]
+    this.itemsBusy.delete(messageKey)
+}
+```
 - Even if using array, it's still not performant enough, using the `filter` method, which is usually slower than finding the relevent and remove it (`findIndex` & `splice`).  
 That is because it *must* go over the whole elements in the array as well as copying it to a new array, while find & remove also stops the the first index (which in our case will be the only matching index), as well doesn't copy to a new array.  
+i.e:
+```
+const index = this.itemsBusy.findIndex(item => item === messageKey)
+if (index !== -1) {
+    this.itemsBusy.splice(index, 1)
+}
+```
 
 2. Because i'm running a while loop, i need to be able to context switch to the Confirm function, so i had to change the signature of the Dequeue to be a promise, and change the worker to await the Dequeue
 ```
