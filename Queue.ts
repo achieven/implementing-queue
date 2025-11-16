@@ -4,11 +4,11 @@ import {  Message } from "./Database";
 
 export class Queue {
     private messages: Message[]
-    private itemsBusy: string[]
+    private itemsBusy: Set<string>
 
     constructor() {
         this.messages = []
-        this.itemsBusy = []
+        this.itemsBusy = new Set()
     }
 
     Enqueue = (message: Message) => {
@@ -20,15 +20,15 @@ export class Queue {
         if (!message) {
             return undefined
         }
-        while (this.itemsBusy.includes(message.key)) {
+        while (this.itemsBusy.has(message.key)) {
             await sleep(getRandomInt(10))
         }
-        this.itemsBusy.push(message.key)
+        this.itemsBusy.add(message.key)
         return message
     }
     Confirm = (workerId: number, messageId: string) => {
         const messageKey = messageId.split(':')[0]
-        this.itemsBusy = this.itemsBusy.filter(item => item !== messageKey)
+        this.itemsBusy.delete(messageKey)
     }
 
     Size = () => {
