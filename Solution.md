@@ -34,21 +34,18 @@ We could implemented some kind of CAS, but that's at the DB level, not at the qu
 
 So atomic update isn't possible given these constraints, so the correct solution would be to create some kind of mutex on the key, which is the field that is being race conditioned (different keys are not in race condition with each other).  
 For this, i added a field to the Queue class: `itemsBusy`.  
-the `itemsBusy` is adding and clearing the keys that are currently busy, essentially implementing a mutex on this key
+the `itemsBusy` is adding and clearing the keys that are currently busy, trying to essentially implement a mutex on this key.
 
 ### Note
-1. Because i'm running a while loop, i need to be able to context switch to the Confirm function, so i had to change the signature of the Dequeue to be a promise, and change the worker to await the Dequeue
+1. Out of rush to complete the task with the given time, there are a few issues:  
+- This solution is not fully race condition proof, it's not implementing lock acquisition good enough, because for example 2 workers can might not access the while condition, and both push to the array (which should have been a map/object, see note (3)), and resolve.  
+Ideal solution should use a real Mutex implementation for each item.  
+- Even if not using mutex, using map/object would have been more performant than array, as it checks the while condition and removes in O(1) complexity.
+- Even if using array, it's still not performant enough, using the `filter` method, which is usually slower than finding the relevent and remove it (`findIndex` & `splice`).  
+That is because it *must* go over the whole elements in the array as well as copying it to a new array, while find & remove also stops the the first index (which in our case will be the only matching index), as well doesn't copy to a new array.  
+
+2. Because i'm running a while loop, i need to be able to context switch to the Confirm function, so i had to change the signature of the Dequeue to be a promise, and change the worker to await the Dequeue
 ```
 await this.queue.Dequeue(this.workerId)`
-```
-2. Out of rush to complete the task with the given time - I used the `filter` method, which is usually slower than finding the relevent and remove it (`findIndex` & `splice`).  
-That is because it *must* go over the whole elements in the array as well as copying it to a new array, while find & remove also stops the the first index (which in our case will be the only matching index), as well doesn't copy to a new array.  
-Ideal solution would have been:
-```
-//this.itemsBusy = this.itemsBusy.filter(item => item !== messageKey) //replaced this line with the next 3 lines
- const index = this.itemsBusy.findIndex(item => item === messageKey)
-if (index !== -1) {
-    this.itemsBusy.splice(index, 1)
-}
 ```
 
